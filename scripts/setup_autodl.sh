@@ -66,7 +66,7 @@ local_llava = "/root/autodl-tmp/models/llava-1.6-vicuna-7b"
 if not os.path.exists(local_llava):
     print("Downloading LLaVA-1.6-vicuna-7b ...")
     snapshot_download(
-        repo_id="llava-hf/llava-1.6-vicuna-7b-hf",
+        repo_id="llava-hf/llava-v1.6-vicuna-7b-hf",
         local_dir=local_llava,
         ignore_patterns=["*.msgpack", "flax_model*"],
     )

@@ -39,9 +39,9 @@ def load_model(
     hf_path = model_path or config.get("model_path") or config.get("model_name")
     if hf_path is None:
         hf_path = {
-            "llava": "llava-hf/llava-1.6-vicuna-7b-hf",
+            "llava": "llava-hf/llava-v1.6-vicuna-7b-hf",
             "qwen2_vl": "Qwen/Qwen2-VL-7B-Instruct",
-        }.get(model_name, "llava-hf/llava-1.6-vicuna-7b-hf")
+        }.get(model_name, "llava-hf/llava-v1.6-vicuna-7b-hf")
 
     model_type = config.get("model_type", model_name)
     dtype = dtype or (torch.float16 if config.get("dtype") == "float16" else torch.bfloat16)

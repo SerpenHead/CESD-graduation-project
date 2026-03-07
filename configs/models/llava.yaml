@@ -1,4 +1,4 @@
-model_name: llava-hf/llava-1.6-vicuna-7b-hf
+model_name: llava-hf/llava-v1.6-vicuna-7b-hf
 model_type: llava
 dtype: float16
 device_map: auto
