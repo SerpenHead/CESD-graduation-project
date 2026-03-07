@@ -35,29 +35,52 @@ fi
 echo "=== [3/5] 下载 POPE 数据集 ==="
 POPE_DIR="$DATA_ROOT/pope"
 python - "$POPE_DIR" <<'PYEOF'
-import sys, os, shutil
-from huggingface_hub import hf_hub_download
+import sys, os, json, urllib.request
 
 pope_dir = sys.argv[1]
 os.makedirs(pope_dir, exist_ok=True)
 
+# POPE JSON files live in AoiDragon/POPE on GitHub (output/coco/)
+REPO = "AoiDragon/POPE"
+
 for split in ["random", "popular", "adversarial"]:
     fname = f"coco_pope_{split}.json"
     dst = os.path.join(pope_dir, fname)
-    if os.path.exists(dst) and os.path.getsize(dst) > 100:
+    if os.path.exists(dst) and os.path.getsize(dst) > 1000:
         print(f"  {fname} already exists, skipping.")
         continue
     print(f"  Downloading {fname} ...")
+    ok = False
+
+    # Method 1: GitHub API -> download_url (works well in China)
+    api_url = f"https://api.github.com/repos/{REPO}/contents/output/coco/{fname}"
     try:
-        cached = hf_hub_download(
-            repo_id="lmms-lab/POPE",
-            filename=f"coco/{fname}",
-            repo_type="dataset",
-        )
-        shutil.copy(cached, dst)
-        print(f"  -> {dst} ({os.path.getsize(dst)} bytes)")
+        req = urllib.request.Request(api_url, headers={"User-Agent": "CESD-bot"})
+        resp = urllib.request.urlopen(req, timeout=30)
+        meta = json.loads(resp.read())
+        dl_url = meta["download_url"]
+        urllib.request.urlretrieve(dl_url, dst)
+        ok = os.path.exists(dst) and os.path.getsize(dst) > 1000
+        if ok:
+            print(f"  -> {dst} ({os.path.getsize(dst)} bytes) [GitHub API]")
     except Exception as e:
-        print(f"  WARNING: Failed to download {fname}: {e}")
+        print(f"  GitHub API failed: {e}")
+
+    # Method 2: raw.githubusercontent.com direct
+    if not ok:
+        raw_url = f"https://raw.githubusercontent.com/{REPO}/main/output/coco/{fname}"
+        try:
+            urllib.request.urlretrieve(raw_url, dst)
+            ok = os.path.exists(dst) and os.path.getsize(dst) > 1000
+            if ok:
+                print(f"  -> {dst} ({os.path.getsize(dst)} bytes) [GitHub raw]")
+        except Exception as e:
+            print(f"  GitHub raw failed: {e}")
+
+    if not ok:
+        if os.path.exists(dst):
+            os.remove(dst)
+        print(f"  WARNING: Could not download {fname}.")
         print(f"  Please download manually and place at {dst}")
 
 print("  POPE download step done.")
