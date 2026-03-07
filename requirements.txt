@@ -1,10 +1,11 @@
 # CESD - Contrast-Enhanced Sparsified Decoding for VLM Hallucination Mitigation
-# Python 3.10+ recommended, PyTorch 2.0+
+# Python 3.10+ recommended, PyTorch 2.4+, CUDA 11.8+
 
-# Core
-torch>=2.0.0
-torchvision>=0.15.0
-transformers>=4.37.0
+# Core (torch/torchvision should be pre-installed by AutoDL image or manually)
+# pip install torch>=2.4.0 torchvision>=0.19.0 --index-url https://download.pytorch.org/whl/cu118
+torch>=2.4.0
+torchvision>=0.19.0
+transformers>=4.45.0
 accelerate>=0.25.0
 safetensors>=0.4.0
 huggingface_hub>=0.20.0
