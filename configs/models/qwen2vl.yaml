@@ -1,0 +1,4 @@
+model_name: Qwen/Qwen2-VL-7B-Instruct
+model_type: qwen2_vl
+dtype: float16
+device_map: auto

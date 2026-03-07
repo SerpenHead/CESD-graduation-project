@@ -1,0 +1,7 @@
+dataset: chair
+data_path: data/mscoco
+split: val2014
+num_samples: 500
+metrics:
+  - chair_i
+  - chair_s

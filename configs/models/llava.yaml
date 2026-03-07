@@ -1,0 +1,7 @@
+model_name: llava-hf/llava-1.6-vicuna-7b-hf
+model_type: llava
+dtype: float16
+device_map: auto
+image_token_id: 32000
+# Local path override (set this if model is downloaded to AutoDL local storage)
+# model_path: /root/autodl-tmp/models/llava-1.6-vicuna-7b

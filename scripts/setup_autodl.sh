@@ -1,0 +1,82 @@
+#!/bin/bash
+# AutoDL 环境一键初始化脚本
+# 在 AutoDL 实例的终端中执行: bash scripts/setup_autodl.sh
+# 适用于 PyTorch 2.x 镜像 (Python 3.10, CUDA 11.8+)
+
+set -e
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+echo "=== [1/5] 安装 Python 依赖 ==="
+pip install -q --upgrade pip
+pip install -q -r requirements.txt
+# spaCy 英语模型（CHAIR 词形还原备用）
+python -m nltk.downloader -q punkt averaged_perceptron_tagger
+
+echo "=== [2/5] 创建数据目录 ==="
+mkdir -p data/pope data/mscoco/val2014 data/mscoco/annotations data/mme results figures
+
+echo "=== [3/5] 下载 POPE 数据集 ==="
+# 来源: https://github.com/RUCAIBox/POPE
+POPE_DIR="data/pope"
+for SPLIT in random popular adversarial; do
+    URL="https://huggingface.co/datasets/lmms-lab/POPE/resolve/main/coco/coco_pope_${SPLIT}.json"
+    if [ ! -f "${POPE_DIR}/coco_pope_${SPLIT}.json" ]; then
+        echo "  Downloading coco_pope_${SPLIT}.json ..."
+        wget -q -O "${POPE_DIR}/coco_pope_${SPLIT}.json" "$URL" || \
+        echo "  WARNING: Failed to download ${SPLIT}. Download manually from https://github.com/RUCAIBox/POPE"
+    else
+        echo "  coco_pope_${SPLIT}.json already exists, skipping."
+    fi
+done
+
+echo "=== [4/5] 下载 COCO val2014 (约 6.6 GB) ==="
+COCO_ZIP="data/val2014.zip"
+COCO_ANN_ZIP="data/annotations_trainval2014.zip"
+if [ ! -f "data/mscoco/val2014/COCO_val2014_000000000042.jpg" ]; then
+    if [ ! -f "$COCO_ZIP" ]; then
+        echo "  Downloading COCO val2014 images..."
+        wget -q -c "http://images.cocodataset.org/zips/val2014.zip" -O "$COCO_ZIP"
+    fi
+    echo "  Extracting val2014..."
+    unzip -q "$COCO_ZIP" -d data/mscoco/
+fi
+if [ ! -f "data/mscoco/annotations/instances_val2014.json" ]; then
+    if [ ! -f "$COCO_ANN_ZIP" ]; then
+        echo "  Downloading COCO annotations..."
+        wget -q -c "http://images.cocodataset.org/annotations/annotations_trainval2014.zip" -O "$COCO_ANN_ZIP"
+    fi
+    echo "  Extracting annotations..."
+    unzip -q "$COCO_ANN_ZIP" -d data/mscoco/
+fi
+
+echo "=== [5/5] 下载模型 (HuggingFace Hub) ==="
+python - <<'EOF'
+from huggingface_hub import snapshot_download
+import os
+
+# LLaVA-1.6-vicuna-7b
+local_llava = "models/llava-1.6-vicuna-7b"
+if not os.path.exists(local_llava):
+    print("Downloading LLaVA-1.6-vicuna-7b ...")
+    snapshot_download(
+        repo_id="llava-hf/llava-1.6-vicuna-7b-hf",
+        local_dir=local_llava,
+        ignore_patterns=["*.msgpack", "flax_model*"],
+    )
+    print("Done.")
+else:
+    print(f"Model already at {local_llava}")
+EOF
+
+echo ""
+echo "=== 环境准备完成 ==="
+echo ""
+echo "快速验证命令:"
+echo "  python scripts/run_eval_pope.py --model llava --decoder greedy --num_samples 10 --splits random"
+echo ""
+echo "完整评估命令:"
+echo "  python scripts/run_eval_pope.py  --model llava --decoder cesd   --seed 42"
+echo "  python scripts/run_eval_chair.py --model llava --decoder cesd   --seed 42"
+echo "  python scripts/run_ablation.py   --mode ablation  --seed 42 --num_samples 100"
+echo "  python scripts/run_ablation.py   --mode tps       --seed 42"

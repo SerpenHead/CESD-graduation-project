@@ -1,0 +1,12 @@
+dataset: pope
+data_path: data/pope
+splits:
+  - random
+  - popular
+  - adversarial
+num_samples: 500
+metrics:
+  - accuracy
+  - precision
+  - recall
+  - f1

@@ -1,0 +1,5 @@
+dataset: mme
+data_path: data/mme
+metrics:
+  - perception
+  - cognition
