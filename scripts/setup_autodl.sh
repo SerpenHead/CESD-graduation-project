@@ -56,7 +56,7 @@ from huggingface_hub import snapshot_download
 import os
 
 # LLaVA-1.6-vicuna-7b
-local_llava = "models/llava-1.6-vicuna-7b"
+local_llava = "/root/autodl-tmp/models/llava-1.6-vicuna-7b"
 if not os.path.exists(local_llava):
     print("Downloading LLaVA-1.6-vicuna-7b ...")
     snapshot_download(
