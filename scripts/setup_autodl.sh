@@ -34,25 +34,34 @@ fi
 
 echo "=== [3/5] 下载 POPE 数据集 ==="
 POPE_DIR="$DATA_ROOT/pope"
-for SPLIT in random popular adversarial; do
-    DEST="${POPE_DIR}/coco_pope_${SPLIT}.json"
-    if [ -f "$DEST" ] && [ -s "$DEST" ]; then
-        echo "  coco_pope_${SPLIT}.json already exists, skipping."
+python - "$POPE_DIR" <<'PYEOF'
+import sys, os, shutil
+from huggingface_hub import hf_hub_download
+
+pope_dir = sys.argv[1]
+os.makedirs(pope_dir, exist_ok=True)
+
+for split in ["random", "popular", "adversarial"]:
+    fname = f"coco_pope_{split}.json"
+    dst = os.path.join(pope_dir, fname)
+    if os.path.exists(dst) and os.path.getsize(dst) > 100:
+        print(f"  {fname} already exists, skipping.")
         continue
-    fi
-    echo "  Downloading coco_pope_${SPLIT}.json ..."
-    # 优先使用 HF 镜像，失败则 fallback 到 GitHub raw
-    HF_URL="${HF_ENDPOINT}/datasets/lmms-lab/POPE/resolve/main/coco/coco_pope_${SPLIT}.json"
-    GH_URL="https://raw.githubusercontent.com/RUCAIBox/POPE/main/output/coco/coco_pope_${SPLIT}.json"
-    wget -q --timeout=30 -O "$DEST" "$HF_URL" 2>/dev/null || \
-    wget -q --timeout=30 -O "$DEST" "$GH_URL" 2>/dev/null || \
-    { rm -f "$DEST"; echo "  WARNING: Failed to download ${SPLIT}. Please download manually."; }
-    # 检查下载的文件是否有效（非空且是 JSON）
-    if [ -f "$DEST" ] && ! head -c1 "$DEST" | grep -q '\['; then
-        echo "  WARNING: Downloaded ${SPLIT} appears invalid, removing."
-        rm -f "$DEST"
-    fi
-done
+    print(f"  Downloading {fname} ...")
+    try:
+        cached = hf_hub_download(
+            repo_id="lmms-lab/POPE",
+            filename=f"coco/{fname}",
+            repo_type="dataset",
+        )
+        shutil.copy(cached, dst)
+        print(f"  -> {dst} ({os.path.getsize(dst)} bytes)")
+    except Exception as e:
+        print(f"  WARNING: Failed to download {fname}: {e}")
+        print(f"  Please download manually and place at {dst}")
+
+print("  POPE download step done.")
+PYEOF
 
 echo "=== [4/5] 下载 COCO val2014 (约 6.6 GB) ==="
 COCO_ZIP="$DATA_ROOT/val2014.zip"
