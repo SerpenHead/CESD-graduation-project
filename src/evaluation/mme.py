@@ -5,10 +5,11 @@ Perception + Cognition tasks. Simplified evaluator that runs a subset.
 """
 
 import json
-import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
 from tqdm import tqdm
+
+from src.utils.runtime import get_inference_device, move_inputs_to_device
 
 
 def load_mme_data(data_path: str, task: Optional[str] = None) -> List[Dict]:
@@ -59,6 +60,7 @@ class MMEEvaluator:
 
         tasks = tasks or ["existence", "count", "position", "color"]
         results = {}
+        device = get_inference_device()
         for task in tasks:
             data = load_mme_data(str(self.data_path), task)
             if not data:
@@ -68,14 +70,14 @@ class MMEEvaluator:
                 data = data[: self.num_samples]
             correct = 0
             for item in tqdm(data, desc=f"MME {task}"):
-                img_path = item.get("image", "")
-                if not os.path.isabs(img_path):
-                    img_path = str(self.data_path / img_path)
+                img_path = Path(item.get("image", ""))
+                if not img_path.is_absolute():
+                    img_path = self.data_path / img_path
                 q = item.get("question", item.get("text", ""))
                 gt = str(item.get("answer", item.get("label", ""))).strip().upper()
                 try:
-                    inputs = prepare_inputs(processor, img_path, q, model_type)
-                    inputs = {k: v.to(model.device) if hasattr(v, "to") else v for k, v in inputs.items()}
+                    inputs = prepare_inputs(processor, str(img_path), q, model_type)
+                    inputs = move_inputs_to_device(inputs, device)
                     gen_ids = decode_fn(
                         model,
                         input_ids=inputs["input_ids"],

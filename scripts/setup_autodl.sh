@@ -6,6 +6,9 @@
 set -e
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
+export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
+DATA_ROOT="${DATA_ROOT:-/root/autodl-tmp/data}"
+mkdir -p "$DATA_ROOT" "/root/autodl-tmp/models"
 
 echo "=== [1/5] 安装 Python 依赖 ==="
 pip install -q --upgrade pip
@@ -14,11 +17,14 @@ pip install -q -r requirements.txt
 python -m nltk.downloader -q punkt averaged_perceptron_tagger
 
 echo "=== [2/5] 创建数据目录 ==="
-mkdir -p data/pope data/mscoco/val2014 data/mscoco/annotations data/mme results figures
+mkdir -p "$DATA_ROOT/pope" "$DATA_ROOT/mscoco/val2014" "$DATA_ROOT/mscoco/annotations" "$DATA_ROOT/mme" results figures
+if [ ! -e data ]; then
+    ln -s "$DATA_ROOT" data
+fi
 
 echo "=== [3/5] 下载 POPE 数据集 ==="
 # 来源: https://github.com/RUCAIBox/POPE
-POPE_DIR="data/pope"
+POPE_DIR="$DATA_ROOT/pope"
 for SPLIT in random popular adversarial; do
     URL="https://huggingface.co/datasets/lmms-lab/POPE/resolve/main/coco/coco_pope_${SPLIT}.json"
     if [ ! -f "${POPE_DIR}/coco_pope_${SPLIT}.json" ]; then
@@ -31,23 +37,23 @@ for SPLIT in random popular adversarial; do
 done
 
 echo "=== [4/5] 下载 COCO val2014 (约 6.6 GB) ==="
-COCO_ZIP="data/val2014.zip"
-COCO_ANN_ZIP="data/annotations_trainval2014.zip"
-if [ ! -f "data/mscoco/val2014/COCO_val2014_000000000042.jpg" ]; then
+COCO_ZIP="$DATA_ROOT/val2014.zip"
+COCO_ANN_ZIP="$DATA_ROOT/annotations_trainval2014.zip"
+if [ ! -f "$DATA_ROOT/mscoco/val2014/COCO_val2014_000000000042.jpg" ]; then
     if [ ! -f "$COCO_ZIP" ]; then
         echo "  Downloading COCO val2014 images..."
         wget -q -c "http://images.cocodataset.org/zips/val2014.zip" -O "$COCO_ZIP"
     fi
     echo "  Extracting val2014..."
-    unzip -q "$COCO_ZIP" -d data/mscoco/
+    unzip -q "$COCO_ZIP" -d "$DATA_ROOT/mscoco/"
 fi
-if [ ! -f "data/mscoco/annotations/instances_val2014.json" ]; then
+if [ ! -f "$DATA_ROOT/mscoco/annotations/instances_val2014.json" ]; then
     if [ ! -f "$COCO_ANN_ZIP" ]; then
         echo "  Downloading COCO annotations..."
         wget -q -c "http://images.cocodataset.org/annotations/annotations_trainval2014.zip" -O "$COCO_ANN_ZIP"
     fi
     echo "  Extracting annotations..."
-    unzip -q "$COCO_ANN_ZIP" -d data/mscoco/
+    unzip -q "$COCO_ANN_ZIP" -d "$DATA_ROOT/mscoco/"
 fi
 
 echo "=== [5/5] 下载模型 (HuggingFace Hub) ==="

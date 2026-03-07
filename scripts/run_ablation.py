@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.utils.seed import set_seed
 from src.utils.timing import measure_tps
+from src.utils.runtime import get_inference_device, move_inputs_to_device
 from src.models.model_loader import load_model, get_model_config, prepare_inputs
 from src.evaluation.pope import POPEEvaluator
 from src.decoding import (
@@ -62,14 +63,12 @@ def main():
 
     # ── TPS mode: no POPE needed ─────────────────────────────────────────────
     if args.mode == "tps":
-        import glob, os
-        imgs = glob.glob(os.path.join(args.coco_root, "*.jpg"))
+        imgs = sorted(Path(args.coco_root).glob("*.jpg"))
         if not imgs:
             print("No images found in coco_root for TPS measurement.")
             return
-        inputs = prepare_inputs(processor, imgs[0], "Is there a cat?", model_type)
-        inputs = {k: v.to(model.device) if hasattr(v, "to") else v
-                  for k, v in inputs.items()}
+        inputs = prepare_inputs(processor, str(imgs[0]), "Is there a cat?", model_type)
+        inputs = move_inputs_to_device(inputs, get_inference_device())
 
         all_decoders = {
             "Greedy":   GreedyDecoder(),

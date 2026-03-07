@@ -13,6 +13,8 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from tqdm import tqdm
 
+from src.utils.runtime import get_inference_device, move_inputs_to_device
+
 
 def load_pope_data(
     data_path: str,
@@ -94,7 +96,7 @@ class POPEEvaluator:
         num_samples: Optional[int] = 500,
     ):
         self.data_path = Path(data_path)
-        self.coco_root = coco_root or os.environ.get("COCO_ROOT", "data/mscoco/val2014")
+        self.coco_root = Path(coco_root or os.environ.get("COCO_ROOT", "data/mscoco/val2014"))
         self.splits = splits or ["random", "popular", "adversarial"]
         self.num_samples = num_samples
 
@@ -126,6 +128,7 @@ class POPEEvaluator:
 
         splits = splits or self.splits
         results = {}
+        device = get_inference_device()
 
         for split in splits:
             try:
@@ -142,24 +145,22 @@ class POPEEvaluator:
                 img_key = item.get("image", item.get("image_path", ""))
                 if isinstance(img_key, (int, float)):
                     img_key = str(int(img_key))
-                image_path = str(img_key)
-                if not os.path.isabs(image_path):
-                    image_path = os.path.join(self.coco_root, image_path)
-                if not os.path.exists(image_path) and not image_path.endswith((".jpg", ".png", ".jpeg")):
+                image_path = Path(str(img_key))
+                if not image_path.is_absolute():
+                    image_path = self.coco_root / image_path
+                if (not image_path.exists()) and image_path.suffix.lower() not in {".jpg", ".png", ".jpeg"}:
                     try:
-                        image_path = os.path.join(
-                            self.coco_root, f"COCO_val2014_{int(img_key):012d}.jpg"
-                        )
+                        image_path = self.coco_root / f"COCO_val2014_{int(img_key):012d}.jpg"
                     except (ValueError, TypeError):
-                        image_path = os.path.join(self.coco_root, image_path)
+                        image_path = self.coco_root / image_path
                 text = item.get("text", item.get("question", ""))
                 label = item.get("answer", item.get("label", "no")).lower()
                 if label not in ("yes", "no"):
                     label = "yes" if label == "1" else "no"
 
                 try:
-                    inputs = prepare_inputs(processor, image_path, text, model_type)
-                    inputs = {k: v.to(model.device) if hasattr(v, "to") else v for k, v in inputs.items()}
+                    inputs = prepare_inputs(processor, str(image_path), text, model_type)
+                    inputs = move_inputs_to_device(inputs, device)
                     gen_ids = decode_fn(
                         model,
                         input_ids=inputs["input_ids"],
@@ -176,7 +177,7 @@ class POPEEvaluator:
                     pred = parse_answer(out_text)
                 except Exception as e:
                     pred = "no"
-                    print(f"Error on {image_path}: {e}")
+                    print(f"Error on {str(image_path)}: {e}")
                 preds.append(pred)
                 labels.append(label)
 

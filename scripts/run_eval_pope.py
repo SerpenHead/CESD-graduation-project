@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.utils.seed import set_seed
-from src.utils.timing import TPSMeter
+from src.utils.runtime import get_inference_device, move_inputs_to_device
 from src.models.model_loader import load_model, get_model_config, prepare_inputs
 from src.evaluation.pope import POPEEvaluator
 from src.decoding import (
@@ -71,13 +71,11 @@ def main():
     # ── Optional TPS measurement (one image, 3 runs) ─────────────────────────
     tps_info = {}
     if args.measure_tps:
-        import glob, os
-        sample_imgs = glob.glob(os.path.join(args.coco_root, "*.jpg"))
+        sample_imgs = sorted(Path(args.coco_root).glob("*.jpg"))
         if sample_imgs:
             img_path = sample_imgs[0]
-            inputs = prepare_inputs(processor, img_path, "Is there a cat?", model_type)
-            inputs = {k: v.to(model.device) if hasattr(v, "to") else v
-                      for k, v in inputs.items()}
+            inputs = prepare_inputs(processor, str(img_path), "Is there a cat?", model_type)
+            inputs = move_inputs_to_device(inputs, get_inference_device())
             from src.utils.timing import measure_tps
             tps_info = measure_tps(decoder, model, inputs,
                                    max_new_tokens=16, n_warmup=1, n_runs=3)

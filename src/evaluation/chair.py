@@ -13,12 +13,13 @@ Fix over previous version:
 """
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable, Set
 from collections import defaultdict
 from tqdm import tqdm
+
+from src.utils.runtime import get_inference_device, move_inputs_to_device
 
 
 # ── COCO 80-class object list ─────────────────────────────────────────────────
@@ -314,7 +315,7 @@ class CHAIREvaluator:
 
     def _load_gt(self) -> Dict[int, Set[str]]:
         if self._gt is None:
-            if os.path.exists(self.annot_path):
+            if Path(self.annot_path).exists():
                 print(f"[CHAIR] Loading annotations from {self.annot_path}")
                 self._gt = load_coco_annotations(self.annot_path)
             else:
@@ -351,6 +352,7 @@ class CHAIREvaluator:
         gt = self._load_gt()
         if not gt:
             return {"chair_s": 0.0, "chair_i": 0.0, "n_evaluated": 0}
+        device = get_inference_device()
 
         if image_ids is None:
             image_ids = list(gt.keys())[: self.num_samples]
@@ -365,10 +367,7 @@ class CHAIREvaluator:
                 continue
             try:
                 inputs = prepare_inputs(processor, str(img_path), prompt, model_type)
-                inputs = {
-                    k: v.to(model.device) if hasattr(v, "to") else v
-                    for k, v in inputs.items()
-                }
+                inputs = move_inputs_to_device(inputs, device)
                 gen_ids = decode_fn(
                     model,
                     input_ids=inputs["input_ids"],
