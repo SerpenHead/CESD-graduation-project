@@ -1,0 +1,11 @@
+{
+  "model": "llava",
+  "decoder": "greedy",
+  "seed": 42,
+  "num_samples": 500,
+  "results": {
+    "chair_s": 0.39553752535496955,
+    "chair_i": 0.18106060606060606,
+    "n_evaluated": 493
+  }
+}

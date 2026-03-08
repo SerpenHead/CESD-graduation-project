@@ -1,0 +1,27 @@
+{
+  "model": "llava",
+  "decoder": "itad",
+  "seed": 42,
+  "num_samples": 500,
+  "tps": {},
+  "results": {
+    "random": {
+      "accuracy": 0.914,
+      "precision": 0.9641255605381166,
+      "recall": 0.86,
+      "f1": 0.9090909090909091
+    },
+    "popular": {
+      "accuracy": 0.89,
+      "precision": 0.9148936170212766,
+      "recall": 0.86,
+      "f1": 0.8865979381443299
+    },
+    "adversarial": {
+      "accuracy": 0.858,
+      "precision": 0.8565737051792829,
+      "recall": 0.86,
+      "f1": 0.8582834331337326
+    }
+  }
+}

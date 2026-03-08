@@ -1,0 +1,11 @@
+{
+  "model": "llava",
+  "decoder": "cesd",
+  "seed": 42,
+  "num_samples": 500,
+  "results": {
+    "chair_s": 0.39553752535496955,
+    "chair_i": 0.17968157695223655,
+    "n_evaluated": 493
+  }
+}
