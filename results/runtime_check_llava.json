@@ -1,0 +1,57 @@
+{
+  "torch_cuda": {
+    "torch_version": "2.4.0+cu118",
+    "cuda_available": true,
+    "cuda_device_count": 1,
+    "cuda_device_name": "NVIDIA GeForce RTX 4090",
+    "cuda_free_gb": 23.27,
+    "cuda_total_gb": 23.65,
+    "inference_device": "cuda"
+  },
+  "dataset_paths": {
+    "pope_random_json": {
+      "path": "/root/autodl-tmp/data/pope/coco_pope_random.json",
+      "exists": true
+    },
+    "pope_popular_json": {
+      "path": "/root/autodl-tmp/data/pope/coco_pope_popular.json",
+      "exists": true
+    },
+    "pope_adversarial_json": {
+      "path": "/root/autodl-tmp/data/pope/coco_pope_adversarial.json",
+      "exists": true
+    },
+    "coco_val2014_dir": {
+      "path": "/root/autodl-tmp/data/mscoco/val2014",
+      "exists": true
+    },
+    "coco_instances": {
+      "path": "/root/autodl-tmp/data/mscoco/annotations/instances_val2014.json",
+      "exists": true
+    }
+  },
+  "dataloader_multiprocessing": {
+    "num_workers": 2,
+    "ok": true,
+    "error": "",
+    "tested_batches": 2
+  },
+  "hf_model_loading": {
+    "model": "llava",
+    "skipped": false,
+    "ok": false,
+    "error": "'NoneType' object is not iterable"
+  },
+  "oom_risk": {
+    "model": "llava",
+    "risk": "MEDIUM",
+    "cuda_total_gb": 23.65,
+    "cuda_free_gb": 23.27,
+    "suggestions": [
+      "优先使用 24GB+ GPU（4090/A100）",
+      "先用 --num_samples 10 做冒烟测试",
+      "OOM 时优先降低 max_new_tokens（16/32）",
+      "必要时仅先跑 Greedy/iTaD，再跑 CESD"
+    ]
+  }
+}

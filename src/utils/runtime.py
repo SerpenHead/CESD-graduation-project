@@ -16,6 +16,8 @@ def get_inference_device() -> torch.device:
 
 def move_inputs_to_device(inputs: Dict[str, Any], device: torch.device) -> Dict[str, Any]:
     """Move tensor-like values in a dict to target device."""
+    if inputs is None:
+        raise ValueError("move_inputs_to_device received None inputs")
     return {k: (v.to(device) if hasattr(v, "to") else v) for k, v in inputs.items()}
 
 

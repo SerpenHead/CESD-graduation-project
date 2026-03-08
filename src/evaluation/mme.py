@@ -84,6 +84,7 @@ class MMEEvaluator:
                         attention_mask=inputs.get("attention_mask"),
                         pixel_values=inputs.get("pixel_values"),
                         image_grid_thw=inputs.get("image_grid_thw"),
+                        image_sizes=inputs.get("image_sizes"),
                         max_new_tokens=32,
                         **decode_kwargs,
                     )

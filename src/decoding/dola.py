@@ -47,6 +47,7 @@ class DoLaDecoder:
         attention_mask: Optional[torch.Tensor] = None,
         pixel_values: Optional[torch.Tensor] = None,
         image_grid_thw: Optional[torch.Tensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
         max_new_tokens: int = 128,
         **kwargs,
     ) -> torch.Tensor:
@@ -65,6 +66,8 @@ class DoLaDecoder:
                 gen_kwargs["pixel_values"] = pixel_values
             if image_grid_thw is not None:
                 gen_kwargs["image_grid_thw"] = image_grid_thw
+            if image_sizes is not None:
+                gen_kwargs["image_sizes"] = image_sizes
             with torch.no_grad():
                 return model.generate(
                     input_ids=input_ids,
@@ -83,6 +86,8 @@ class DoLaDecoder:
             gen_kwargs["pixel_values"] = pixel_values
         if image_grid_thw is not None:
             gen_kwargs["image_grid_thw"] = image_grid_thw
+        if image_sizes is not None:
+            gen_kwargs["image_sizes"] = image_sizes
 
         batch_size = input_ids.shape[0]
         device = next(model.parameters()).device

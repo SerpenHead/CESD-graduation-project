@@ -75,6 +75,7 @@ class ITaDDecoder:
         attention_mask: Optional[torch.Tensor] = None,
         pixel_values: Optional[torch.Tensor] = None,
         image_grid_thw: Optional[torch.Tensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
         max_new_tokens: int = 128,
         **kwargs,
     ) -> torch.Tensor:
@@ -88,6 +89,8 @@ class ITaDDecoder:
             gen_kwargs["pixel_values"] = pixel_values
         if image_grid_thw is not None:
             gen_kwargs["image_grid_thw"] = image_grid_thw
+        if image_sizes is not None:
+            gen_kwargs["image_sizes"] = image_sizes
 
         batch_size = input_ids.shape[0]
         generated = input_ids.clone()

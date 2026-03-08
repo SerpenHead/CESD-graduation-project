@@ -43,7 +43,11 @@ def load_pope_data(
         )
 
     with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+        raw = f.read().strip()
+        if raw.startswith("["):
+            data = json.loads(raw)
+        else:
+            data = [json.loads(line) for line in raw.split("\n") if line.strip()]
 
     if isinstance(data, dict) and "data" in data:
         data = data["data"]
@@ -160,21 +164,30 @@ class POPEEvaluator:
 
                 try:
                     inputs = prepare_inputs(processor, str(image_path), text, model_type)
-                    inputs = move_inputs_to_device(inputs, device)
-                    gen_ids = decode_fn(
-                        model,
-                        input_ids=inputs["input_ids"],
-                        attention_mask=inputs.get("attention_mask"),
-                        pixel_values=inputs.get("pixel_values"),
-                        image_grid_thw=inputs.get("image_grid_thw"),
-                        max_new_tokens=16,
-                        **decode_kwargs,
-                    )
-                    out_text = processor.decode(
-                        gen_ids[0][inputs["input_ids"].shape[1]:],
-                        skip_special_tokens=True,
-                    )
-                    pred = parse_answer(out_text)
+                    if inputs is None or inputs.get("input_ids") is None:
+                        pred = "no"
+                        print(f"Error on {str(image_path)}: prepare_inputs returned None or missing input_ids")
+                    else:
+                        inputs = move_inputs_to_device(inputs, device)
+                        gen_ids = decode_fn(
+                            model,
+                            input_ids=inputs["input_ids"],
+                            attention_mask=inputs.get("attention_mask"),
+                            pixel_values=inputs.get("pixel_values"),
+                            image_grid_thw=inputs.get("image_grid_thw"),
+                            image_sizes=inputs.get("image_sizes"),
+                            max_new_tokens=16,
+                            **decode_kwargs,
+                        )
+                        if gen_ids is None:
+                            pred = "no"
+                            print(f"Error on {str(image_path)}: decode_fn returned None")
+                        else:
+                            out_text = processor.decode(
+                                gen_ids[0][inputs["input_ids"].shape[1]:],
+                                skip_special_tokens=True,
+                            )
+                            pred = parse_answer(out_text)
                 except Exception as e:
                     pred = "no"
                     print(f"Error on {str(image_path)}: {e}")
