@@ -129,6 +129,7 @@ class CESDDecoder:
         self.use_dynamic_layer = use_dynamic_layer
         self.use_sparsification = use_sparsification
         self.model_info = get_model_info(model_type)
+        self._stats = {"contrastive": 0, "fallback": 0}
 
     def __call__(
         self,
@@ -175,13 +176,17 @@ class CESDDecoder:
             hidden_states = expert_out.hidden_states      # tuple: len = N_layers + 1
             attentions = expert_out.attentions            # tuple: len = N_layers
 
-            # Fallback to greedy if internals not available
-            if hidden_states is None or attentions is None or layers is None:
+            # Fallback to greedy if internals not available (SDPA 可能返回 attentions=() 空元组)
+            if (hidden_states is None or attentions is None or layers is None or
+                    (attentions is not None and len(attentions) == 0) or
+                    (hidden_states is not None and len(hidden_states) <= 1)):
+                self._stats["fallback"] += 1
                 next_token = expert_logits.argmax(dim=-1, keepdim=True)
             else:
                 # Locate image tokens in the ORIGINAL prompt (unchanged positions)
                 v_s, v_e = get_image_token_indices(input_ids[0], image_token_id, device)
                 if v_s < 0:
+                    self._stats["fallback"] += 1
                     next_token = expert_logits.argmax(dim=-1, keepdim=True)
                 else:
                     # ── Compute iTaV, select amateur layer ────────────────────
@@ -217,9 +222,11 @@ class CESDDecoder:
 
                     # ── Contrastive decode ────────────────────────────────────
                     if amateur_logits is not None and amateur_logits.shape == expert_logits.shape:
+                        self._stats["contrastive"] += 1
                         logits = contrastive_decode(expert_logits, amateur_logits, self.alpha)
                         next_token = logits.argmax(dim=-1, keepdim=True)
                     else:
+                        self._stats["fallback"] += 1
                         next_token = expert_logits.argmax(dim=-1, keepdim=True)
 
             # ── Append token, extend mask ────────────────────────────────────
@@ -234,3 +241,10 @@ class CESDDecoder:
                 break
 
         return generated
+
+    def get_and_reset_stats(self) -> dict:
+        """返回本轮生成中 contrastive/fallback 步数并清零，用于验证是否真正跑了对比解码。"""
+        s = dict(self._stats)
+        self._stats["contrastive"] = 0
+        self._stats["fallback"] = 0
+        return s

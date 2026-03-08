@@ -62,8 +62,10 @@ def main():
     set_seed(args.seed)
 
     # ── Load model ───────────────────────────────────────────────────────────
-    print(f"[POPE] Loading model: {args.model}")
-    model, processor = load_model(args.model)
+    # CESD/iTaD 需要 output_attentions，默认 SDPA 可能不返回 → 退化为 Greedy；用 eager 保证拿到 attentions
+    need_attn = args.decoder in ("cesd", "itad")
+    print(f"[POPE] Loading model: {args.model}" + (" (attn_implementation=eager for CESD/iTaD)" if need_attn else ""))
+    model, processor = load_model(args.model, attn_implementation="eager" if need_attn else None)
     config      = get_model_config(args.model)
     model_type  = config.get("model_type", args.model)
     decoder     = build_decoder(args.decoder, model_type)

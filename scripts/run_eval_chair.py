@@ -39,8 +39,9 @@ def main():
 
     set_seed(args.seed)
 
-    print(f"[CHAIR] Loading model: {args.model}")
-    model, processor = load_model(args.model)
+    need_attn = args.decoder in ("cesd", "itad")
+    print(f"[CHAIR] Loading model: {args.model}" + (" (attn_implementation=eager for CESD/iTaD)" if need_attn else ""))
+    model, processor = load_model(args.model, attn_implementation="eager" if need_attn else None)
     config      = get_model_config(args.model)
     model_type  = config.get("model_type", args.model)
 

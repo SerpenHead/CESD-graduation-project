@@ -25,16 +25,22 @@ def load_model(
     dtype: Optional[torch.dtype] = None,
     device_map: str = "auto",
     trust_remote_code: bool = True,
+    attn_implementation: Optional[str] = None,
     **kwargs,
 ) -> Tuple[Any, Any]:
     """
     Load VLM model and processor.
+
+    attn_implementation: "eager" 时强制使用 eager attention，保证 output_attentions=True
+        能返回注意力权重（CESD/iTaD 需要）。默认 None 使用 SDPA，可能不返回 attentions。
 
     Returns:
         (model, processor) tuple with model.eval() already called.
     """
     from transformers import AutoProcessor, AutoModelForCausalLM
 
+    if attn_implementation is not None:
+        kwargs["attn_implementation"] = attn_implementation
     config = get_model_config(model_name)
     hf_path = model_path or config.get("model_path") or config.get("model_name")
     if hf_path is None:

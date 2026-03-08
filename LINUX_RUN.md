@@ -82,25 +82,36 @@ bash run.sh ablation llava
 bash run.sh tps llava
 ```
 
-## 7. 常见问题
+## 7. CESD/iTaD 注意力验证（可选）
 
-### 7.1 CUDA 不可用
+若怀疑 POPE/CHAIR 上 CESD 与 Greedy 结果过于接近，可运行：
+
+```bash
+python scripts/verify_attention_output.py --model llava --data_path "${DATA_ROOT}/pope" --coco_root "${DATA_ROOT}/mscoco/val2014" --skip_eager_test --run_cesd_samples 2
+```
+
+- 默认 (SDPA) 下若输出「attentions 层数: 0」且「fallback 比例: 100%」，说明此前 CESD 实际在当 Greedy 用。
+- 评测脚本已对 `cesd`/`itad` 自动使用 `attn_implementation="eager"` 加载模型，保证对比解码生效。
+
+## 8. 常见问题
+
+### 8.1 CUDA 不可用
 
 - 检查 `nvidia-smi` 是否正常
 - 确认 AutoDL 镜像是 GPU 版本（非 CPU 镜像）
 
-### 7.2 模型下载失败
+### 8.2 模型下载失败
 
 - 设置 `HF_ENDPOINT=https://hf-mirror.com`
 - 检查模型路径与 `configs/models/llava.yaml` 的 `model_path` 是否一致
 
-### 7.3 OOM（显存不足）
+### 8.3 OOM（显存不足）
 
 - 先运行 `bash run.sh quick llava greedy`
 - 降低生成长度（`max_new_tokens`）
 - 优先运行 Greedy/DoLa，再运行 CESD（CESD 每步 token 有双前向）
 
-## 8. 输出目录
+## 9. 输出目录
 
 - 评测结果：`results/*.json`
 - 自检报告：`results/runtime_check_*.json`

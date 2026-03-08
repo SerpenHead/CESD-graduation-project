@@ -67,6 +67,7 @@ class ITaDDecoder:
     def __init__(self, alpha: float = 0.5, model_type: str = "llava", **kwargs):
         self.alpha = alpha
         self.model_info = get_model_info(model_type)
+        self._stats = {"contrastive": 0, "fallback": 0}
 
     def __call__(
         self,
@@ -108,15 +109,19 @@ class ITaDDecoder:
 
             expert_logits = expert_out.logits[:, -1, :]
 
-            if expert_out.hidden_states is None or expert_out.attentions is None or layers is None:
+            if (expert_out.hidden_states is None or expert_out.attentions is None or layers is None or
+                    len(expert_out.attentions) == 0):
+                self._stats["fallback"] += 1
                 next_tok = expert_logits.argmax(dim=-1, keepdim=True)
             else:
                 v_s, v_e = get_image_token_indices(input_ids[0], image_token_id, device)
                 if v_s < 0:
+                    self._stats["fallback"] += 1
                     next_tok = expert_logits.argmax(dim=-1, keepdim=True)
                 else:
                     itavs = compute_itav(expert_out.attentions, v_s, v_e)
                     if not itavs:
+                        self._stats["fallback"] += 1
                         next_tok = expert_logits.argmax(dim=-1, keepdim=True)
                     else:
                         final_idx = len(itavs) - 1
@@ -128,9 +133,11 @@ class ITaDDecoder:
                             layers, m_star, h_inject,
                         )
                         if amateur_logits is not None and amateur_logits.shape == expert_logits.shape:
+                            self._stats["contrastive"] += 1
                             logits = contrastive_decode(expert_logits, amateur_logits, self.alpha)
                             next_tok = logits.argmax(dim=-1, keepdim=True)
                         else:
+                            self._stats["fallback"] += 1
                             next_tok = expert_logits.argmax(dim=-1, keepdim=True)
 
             generated = torch.cat([generated, next_tok], dim=1)
@@ -144,3 +151,10 @@ class ITaDDecoder:
                 break
 
         return generated
+
+    def get_and_reset_stats(self) -> dict:
+        """返回本轮生成中 contrastive/fallback 步数并清零，用于验证是否真正跑了对比解码。"""
+        s = dict(self._stats)
+        self._stats["contrastive"] = 0
+        self._stats["fallback"] = 0
+        return s
