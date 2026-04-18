@@ -23,7 +23,7 @@ from src.evaluation.pope import POPEEvaluator
 from src.decoding import (
     GreedyDecoder, BeamSearchDecoder,
     CESDDecoder, ITaDDecoder,
-    DoLaDecoder, VASparseDecoder, OPERADecoder,
+    DoLaDecoder, VASparseDecoder, OPERADecoder, VCDDecoder,
 )
 
 
@@ -33,10 +33,22 @@ def build_decoder(name: str, model_type: str):
         "beam":      BeamSearchDecoder(beam_size=5),
         "dola":      DoLaDecoder(alpha=0.1),
         "itad":      ITaDDecoder(alpha=0.5, model_type=model_type),
-        "vasparse":  VASparseDecoder(keep_ratio=0.5),
-        "opera":     OPERADecoder(),
+        "vasparse":  VASparseDecoder(keep_ratio=0.5, model_type=model_type),
+        "vcd":       VCDDecoder(alpha=0.5, noise_std=0.05),
+        "opera":     OPERADecoder(model_type=model_type),
         "cesd":      CESDDecoder(alpha=0.5, sparsify_ratio=0.2, model_type=model_type),
     }[name]
+
+
+def decode_stats(decoder) -> dict:
+    if not hasattr(decoder, "get_and_reset_stats"):
+        return {"contrastive": 0, "fallback": 0, "fallback_ratio": 0.0}
+    stats = decoder.get_and_reset_stats()
+    c = int(stats.get("contrastive", 0))
+    f = int(stats.get("fallback", 0))
+    total = c + f
+    stats["fallback_ratio"] = (float(f) / float(total)) if total > 0 else 0.0
+    return stats
 
 
 def main():
@@ -45,7 +57,7 @@ def main():
                         choices=["llava", "qwen2_vl"])
     parser.add_argument("--decoder",     default="cesd",
                         choices=["greedy", "beam", "dola", "itad",
-                                 "vasparse", "opera", "cesd"])
+                                 "vasparse", "vcd", "opera", "cesd"])
     parser.add_argument("--data_path",   default="data/pope")
     parser.add_argument("--coco_root",   default="data/mscoco/val2014")
     parser.add_argument("--splits",      nargs="+",
@@ -62,9 +74,8 @@ def main():
     set_seed(args.seed)
 
     # ── Load model ───────────────────────────────────────────────────────────
-    # CESD/iTaD 需要 output_attentions，默认 SDPA 可能不返回 → 退化为 Greedy；用 eager 保证拿到 attentions
-    need_attn = args.decoder in ("cesd", "itad")
-    print(f"[POPE] Loading model: {args.model}" + (" (attn_implementation=eager for CESD/iTaD)" if need_attn else ""))
+    need_attn = args.decoder in ("cesd", "itad", "opera", "vasparse")
+    print(f"[POPE] Loading model: {args.model}" + (" (attn_implementation=eager)" if need_attn else ""))
     model, processor = load_model(args.model, attn_implementation="eager" if need_attn else None)
     config      = get_model_config(args.model)
     model_type  = config.get("model_type", args.model)
@@ -83,6 +94,8 @@ def main():
                                    max_new_tokens=16, n_warmup=1, n_runs=3)
             print(f"[TPS] {args.decoder}: {tps_info['tps_mean']:.2f} ± "
                   f"{tps_info['tps_std']:.2f} tok/s")
+            if hasattr(decoder, "get_and_reset_stats"):
+                decoder.get_and_reset_stats()
 
     # ── POPE evaluation ───────────────────────────────────────────────────────
     evaluator = POPEEvaluator(
@@ -100,6 +113,7 @@ def main():
         model_type=model_type,
         splits=args.splits,
     )
+    dec_stats = decode_stats(decoder)
 
     # ── Save results ─────────────────────────────────────────────────────────
     ts = time.strftime("%Y%m%d_%H%M%S")
@@ -112,6 +126,7 @@ def main():
         "seed":       args.seed,
         "num_samples": args.num_samples,
         "tps":        tps_info,
+        "decode_stats": dec_stats,
         "results":    results,
     }
     with open(out_path, "w", encoding="utf-8") as f:
@@ -121,6 +136,12 @@ def main():
     for split, m in results.items():
         print(f"  {split:12s}  Acc={m['accuracy']:.4f}  "
               f"P={m['precision']:.4f}  R={m['recall']:.4f}  F1={m['f1']:.4f}")
+    if dec_stats:
+        print(
+            f"  decode_stats  contrastive={dec_stats.get('contrastive', 0)}  "
+            f"fallback={dec_stats.get('fallback', 0)}  "
+            f"fallback_ratio={dec_stats.get('fallback_ratio', 0.0):.4f}"
+        )
     print(f"Saved → {out_path}")
 
 

@@ -19,14 +19,14 @@ import torch
 try:
     from ..utils.itav import compute_itav, select_contrastive_layer, contrastive_decode
     from ..utils.sparsification import top_k_sparsify
-    from ..models.model_utils import get_image_token_indices, get_model_info
+    from ..models.model_utils import get_image_token_indices, get_model_info, resolve_image_token_id
 except ImportError:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from src.utils.itav import compute_itav, select_contrastive_layer, contrastive_decode
     from src.utils.sparsification import top_k_sparsify
-    from src.models.model_utils import get_image_token_indices, get_model_info
+    from src.models.model_utils import get_image_token_indices, get_model_info, resolve_image_token_id
 
 
 def _get_transformer_layers(model) -> Optional[torch.nn.ModuleList]:
@@ -144,7 +144,11 @@ class CESDDecoder:
         **kwargs,
     ) -> torch.Tensor:
         device = next(model.parameters()).device
-        image_token_id = image_token_id or self.model_info.get("image_token_id", 32000)
+        image_token_id = image_token_id or resolve_image_token_id(
+            model=model,
+            model_type=self.model_type,
+            fallback=self.model_info.get("image_token_id", 32000),
+        )
         eos_token_id = getattr(model.config, "eos_token_id", None)
         layers = _get_transformer_layers(model)
 

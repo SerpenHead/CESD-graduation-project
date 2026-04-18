@@ -11,6 +11,9 @@ from tqdm import tqdm
 
 from src.utils.runtime import get_inference_device, move_inputs_to_device
 
+PERCEPTION_TASKS = ["existence", "count", "position", "color"]
+COGNITION_TASKS = ["commonsense", "numerical", "text", "symbol"]
+
 
 def load_mme_data(data_path: str, task: Optional[str] = None) -> List[Dict]:
     """Load MME task data. Format: [{image, question, answer}, ...]"""
@@ -58,7 +61,7 @@ class MMEEvaluator:
         except ImportError:
             from models.model_loader import prepare_inputs
 
-        tasks = tasks or ["existence", "count", "position", "color"]
+        tasks = tasks or (PERCEPTION_TASKS + COGNITION_TASKS)
         results = {}
         device = get_inference_device()
         for task in tasks:
@@ -99,10 +102,16 @@ class MMEEvaluator:
                     pass
             results[task] = {"accuracy": correct / len(data) if data else 0, "num": len(data)}
 
-        perception = [results.get(t, {}).get("accuracy", 0) for t in ["existence", "count", "position", "color"]]
-        cognition = [results.get(t, {}).get("accuracy", 0) for t in ["commonsense", "numerical", "text", "symbol"]]
+        def _group_mean(task_names: List[str]) -> float:
+            group_scores = [
+                results[t]["accuracy"]
+                for t in task_names
+                if t in results and results[t].get("num", 0) > 0
+            ]
+            return sum(group_scores) / len(group_scores) if group_scores else 0.0
+
         return {
-            "perception": sum(perception) / len(perception) if perception else 0,
-            "cognition": sum(cognition) / len(cognition) if cognition else 0,
+            "perception": _group_mean(PERCEPTION_TASKS),
+            "cognition": _group_mean(COGNITION_TASKS),
             "tasks": results,
         }

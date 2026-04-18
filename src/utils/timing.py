@@ -82,10 +82,14 @@ def measure_tps(
     grid = inputs.get("image_grid_thw")
     if grid is not None:
         grid = grid.to(device)
+    img_sizes = inputs.get("image_sizes")
+    if img_sizes is not None:
+        img_sizes = img_sizes.to(device)
 
     prompt_len = input_ids.shape[1]
 
     tps_list = []
+    elapsed_list = []
     for i in range(n_warmup + n_runs):
         meter = TPSMeter()
         with meter:
@@ -95,15 +99,17 @@ def measure_tps(
                 attention_mask=attn_mask,
                 pixel_values=pix,
                 image_grid_thw=grid,
+                image_sizes=img_sizes,
                 max_new_tokens=max_new_tokens,
                 **decode_kwargs,
             )
         meter.record(prompt_len, gen_ids.shape[1])
         if i >= n_warmup:
             tps_list.append(meter.tps)
+            elapsed_list.append(meter.elapsed_s)
 
     return {
         "tps_mean": float(np.mean(tps_list)),
         "tps_std": float(np.std(tps_list)),
-        "elapsed_mean_s": float(np.mean([t for t in tps_list])),
+        "elapsed_mean_s": float(np.mean(elapsed_list)),
     }

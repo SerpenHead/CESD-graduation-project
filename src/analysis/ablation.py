@@ -39,6 +39,19 @@ def get_sparsify_sweep_configs(ratios: Optional[List[float]] = None) -> List[Dic
     ]
 
 
+def get_opera_sweep_configs() -> List[Dict[str, Any]]:
+    """OPERA sensitivity sweep on key inference hyper-parameters."""
+    return [
+        {"name": "OPERA-default", "threshold": 0.10, "num_attn_candidates": 5, "penalty_weights": 1.0, "scale_factor": 50.0, "lookahead_weight": 2.0},
+        {"name": "OPERA-thresh-low", "threshold": 0.05, "num_attn_candidates": 5, "penalty_weights": 1.0, "scale_factor": 50.0, "lookahead_weight": 2.0},
+        {"name": "OPERA-thresh-high", "threshold": 0.20, "num_attn_candidates": 5, "penalty_weights": 1.0, "scale_factor": 50.0, "lookahead_weight": 2.0},
+        {"name": "OPERA-cand3", "threshold": 0.10, "num_attn_candidates": 3, "penalty_weights": 1.0, "scale_factor": 50.0, "lookahead_weight": 2.0},
+        {"name": "OPERA-cand8", "threshold": 0.10, "num_attn_candidates": 8, "penalty_weights": 1.0, "scale_factor": 50.0, "lookahead_weight": 2.0},
+        {"name": "OPERA-penalty-light", "threshold": 0.10, "num_attn_candidates": 5, "penalty_weights": 0.5, "scale_factor": 30.0, "lookahead_weight": 1.0},
+        {"name": "OPERA-penalty-strong", "threshold": 0.10, "num_attn_candidates": 5, "penalty_weights": 1.5, "scale_factor": 70.0, "lookahead_weight": 3.0},
+    ]
+
+
 def aggregate_ablation_results(
     result_files: List[Path],
     metric_key: str = "f1",

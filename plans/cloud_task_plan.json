@@ -1,0 +1,126 @@
+{
+  "plan_name": "cesd_dual_4090_cloud_execution",
+  "last_updated": "2026-04-18",
+  "owner": "nimoxu",
+  "goals": [
+    "Complete dual-model (LLaVA + Qwen2-VL) full benchmark matrix",
+    "Validate CESD effectiveness with ablation and sensitivity experiments",
+    "Produce reproducible JSON artifacts for thesis and GitHub"
+  ],
+  "environment": {
+    "hardware": "Dual RTX 4090 (GPU0 for LLaVA, GPU1 for Qwen2-VL)",
+    "runtime": "Linux cloud host, Python 3.10+, CUDA 11.8+",
+    "paths": {
+      "data_root": "/root/autodl-tmp/data",
+      "model_root": "/root/autodl-tmp/models",
+      "hf_cache": "/root/autodl-tmp/hf-cache"
+    }
+  },
+  "task_board": [
+    {
+      "id": "T1",
+      "title": "Bootstrap fresh machine",
+      "status": "todo",
+      "commands": [
+        "bash scripts/bootstrap_fresh_machine.sh model",
+        "bash scripts/bootstrap_fresh_machine.sh data"
+      ],
+      "done_when": [
+        "Both model directories exist under /root/autodl-tmp/models",
+        "POPE + COCO val2014 + annotations are present under /root/autodl-tmp/data"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "Dual-GPU smoke test",
+      "status": "todo",
+      "commands": [
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_matrix.py --models llava --benchmarks pope chair mme --decoders greedy beam dola itad vasparse vcd opera cesd --num_samples 10 --seed 42 --results_root results/matrix_smoke",
+        "CUDA_VISIBLE_DEVICES=1 python scripts/run_matrix.py --models qwen2_vl --benchmarks pope chair mme --decoders greedy beam dola itad vasparse vcd opera cesd --num_samples 10 --seed 42 --results_root results/matrix_smoke"
+      ],
+      "done_when": [
+        "No decoder crashes",
+        "All benchmark/model/decoder combinations produce JSON outputs"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "Main matrix run",
+      "status": "todo",
+      "commands": [
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_matrix.py --models llava --benchmarks pope chair mme --decoders greedy beam dola itad vasparse vcd opera cesd --num_samples 500 --seed 42 --results_root results/matrix --resume --skip_existing",
+        "CUDA_VISIBLE_DEVICES=1 python scripts/run_matrix.py --models qwen2_vl --benchmarks pope chair mme --decoders greedy beam dola itad vasparse vcd opera cesd --num_samples 500 --seed 42 --results_root results/matrix --resume --skip_existing"
+      ],
+      "done_when": [
+        "Full matrix outputs exist for both models",
+        "decode_stats includes fallback_ratio for each run"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "Ablation and sensitivity",
+      "status": "todo",
+      "commands": [
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_ablation.py --model llava --mode ablation --num_samples 100 --output_dir results/ablation/llava",
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_ablation.py --model llava --mode alpha --num_samples 100 --output_dir results/ablation/llava",
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_ablation.py --model llava --mode sparsify --num_samples 100 --output_dir results/ablation/llava",
+        "CUDA_VISIBLE_DEVICES=0 python scripts/run_ablation.py --model llava --mode opera --num_samples 100 --output_dir results/ablation/llava",
+        "CUDA_VISIBLE_DEVICES=1 python scripts/run_ablation.py --model qwen2_vl --mode ablation --num_samples 100 --output_dir results/ablation/qwen2_vl",
+        "CUDA_VISIBLE_DEVICES=1 python scripts/run_ablation.py --model qwen2_vl --mode alpha --num_samples 100 --output_dir results/ablation/qwen2_vl",
+        "CUDA_VISIBLE_DEVICES=1 python scripts/run_ablation.py --model qwen2_vl --mode sparsify --num_samples 100 --output_dir results/ablation/qwen2_vl",
+        "CUDA_VISIBLE_DEVICES=1 python scripts/run_ablation.py --model qwen2_vl --mode opera --num_samples 100 --output_dir results/ablation/qwen2_vl"
+      ],
+      "done_when": [
+        "All ablation summary files generated for both models",
+        "Can identify stable ranges for alpha, sparsify_ratio, OPERA parameters"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "Reproducibility runs",
+      "status": "todo",
+      "commands": [
+        "for s in 13 42 123; do CUDA_VISIBLE_DEVICES=0 python scripts/run_matrix.py --models llava --benchmarks pope chair mme --decoders greedy itad opera cesd --num_samples 500 --seed $s --results_root results/matrix_repro --resume --skip_existing; done",
+        "for s in 13 42 123; do CUDA_VISIBLE_DEVICES=1 python scripts/run_matrix.py --models qwen2_vl --benchmarks pope chair mme --decoders greedy itad opera cesd --num_samples 500 --seed $s --results_root results/matrix_repro --resume --skip_existing; done"
+      ],
+      "done_when": [
+        "Three-seed outputs exist for all key methods",
+        "Variance is acceptable and explainable"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "Aggregate and archive",
+      "status": "todo",
+      "commands": [
+        "python scripts/aggregate_results.py --results_root results/matrix --output results/matrix_summary.json",
+        "python scripts/aggregate_results.py --results_root results/matrix_repro --output results/matrix_repro_summary.json"
+      ],
+      "done_when": [
+        "Summary JSON files generated and committed",
+        "All required outputs are in git-tracked locations"
+      ]
+    }
+  ],
+  "quality_gates": {
+    "functional": [
+      "All decoders return valid token sequences with no shape errors",
+      "CESD/iTaD/OPERA fallback_ratio < 0.30 on primary POPE split"
+    ],
+    "benchmark": [
+      "POPE random/popular/adversarial metrics present",
+      "CHAIR n_evaluated > 0",
+      "MME perception and cognition are both non-zero when dataset exists"
+    ],
+    "stability": [
+      "run_matrix --resume works after interruption",
+      "Dual-GPU parallel runs can complete without deadlock"
+    ]
+  },
+  "github_release_checklist": [
+    "git status is clean except intended experiment outputs",
+    "results summaries are generated",
+    "commit message includes scope: refactor + cloud plan + runner",
+    "git push origin <branch> succeeds"
+  ]
+}

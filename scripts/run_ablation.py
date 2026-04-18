@@ -30,12 +30,13 @@ from src.models.model_loader import load_model, get_model_config, prepare_inputs
 from src.evaluation.pope import POPEEvaluator
 from src.decoding import (
     GreedyDecoder, BeamSearchDecoder, CESDDecoder,
-    ITaDDecoder, DoLaDecoder, VASparseDecoder, OPERADecoder,
+    ITaDDecoder, DoLaDecoder, VASparseDecoder, VCDDecoder, OPERADecoder,
 )
 from src.analysis.ablation import (
     get_ablation_configs,
     get_alpha_sweep_configs,
     get_sparsify_sweep_configs,
+    get_opera_sweep_configs,
 )
 
 
@@ -43,7 +44,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model",       default="llava")
     parser.add_argument("--mode",        default="ablation",
-                        choices=["ablation", "alpha", "sparsify", "tps"])
+                        choices=["ablation", "alpha", "sparsify", "opera", "tps"])
     parser.add_argument("--data_path",   default="data/pope")
     parser.add_argument("--coco_root",   default="data/mscoco/val2014")
     parser.add_argument("--num_samples", type=int, default=100,
@@ -56,8 +57,10 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[Ablation] Loading model: {args.model}")
-    model, processor = load_model(args.model)
+    # This script always benchmarks CESD variants (and iTaD in TPS mode), so we
+    # force eager attention to ensure attentions are actually returned.
+    print(f"[Ablation] Loading model: {args.model} (attn_implementation=eager)")
+    model, processor = load_model(args.model, attn_implementation="eager")
     config     = get_model_config(args.model)
     model_type = config.get("model_type", args.model)
 
@@ -75,8 +78,9 @@ def main():
             "Beam-5":   BeamSearchDecoder(beam_size=5),
             "DoLa":     DoLaDecoder(alpha=0.1),
             "iTaD":     ITaDDecoder(alpha=0.5, model_type=model_type),
-            "VASparse": VASparseDecoder(keep_ratio=0.5),
-            "OPERA":    OPERADecoder(),
+            "VASparse": VASparseDecoder(keep_ratio=0.5, model_type=model_type),
+            "VCD":      VCDDecoder(alpha=0.5, noise_std=0.05),
+            "OPERA":    OPERADecoder(model_type=model_type),
             "CESD":     CESDDecoder(alpha=0.5, sparsify_ratio=0.2, model_type=model_type),
         }
 
@@ -101,6 +105,8 @@ def main():
         configs = get_ablation_configs()
     elif args.mode == "alpha":
         configs = get_alpha_sweep_configs()
+    elif args.mode == "opera":
+        configs = get_opera_sweep_configs()
     else:
         configs = get_sparsify_sweep_configs()
 
@@ -115,7 +121,10 @@ def main():
     for cfg in configs:
         name    = cfg.get("name", "config")
         cfg_kw  = {k: v for k, v in cfg.items() if k != "name"}
-        decoder = CESDDecoder(model_type=model_type, **cfg_kw)
+        if args.mode == "opera":
+            decoder = OPERADecoder(model_type=model_type, **cfg_kw)
+        else:
+            decoder = CESDDecoder(model_type=model_type, **cfg_kw)
 
         print(f"\n[{name}] {cfg_kw}")
 

@@ -112,6 +112,7 @@ def _check_hf_model_load(model_name: str, skip_model: bool) -> Dict[str, Any]:
                 attention_mask=inputs.get("attention_mask"),
                 pixel_values=inputs.get("pixel_values"),
                 image_grid_thw=inputs.get("image_grid_thw"),
+                image_sizes=inputs.get("image_sizes"),
                 max_new_tokens=1,
                 do_sample=False,
             )
