@@ -67,11 +67,12 @@ class MMEEvaluator:
         for task in tasks:
             data = load_mme_data(str(self.data_path), task)
             if not data:
-                results[task] = {"accuracy": 0, "num": 0}
+                results[task] = {"accuracy": 0, "num": 0, "num_failed": 0}
                 continue
             if self.num_samples:
                 data = data[: self.num_samples]
             correct = 0
+            failed = 0
             for item in tqdm(data, desc=f"MME {task}"):
                 img_path = Path(item.get("image", ""))
                 if not img_path.is_absolute():
@@ -98,9 +99,17 @@ class MMEEvaluator:
                     pred = parse_mme_answer(out)
                     if pred and gt and pred[0] == gt[0]:
                         correct += 1
-                except Exception:
-                    pass
-            results[task] = {"accuracy": correct / len(data) if data else 0, "num": len(data)}
+                except Exception as e:
+                    failed += 1
+                    if failed <= 3:
+                        print(f"[MME:{task}] sample failed ({img_path}): {e}")
+            if failed == len(data):
+                print(f"[MME:{task}] WARNING: all samples failed; check data path/model inputs.")
+            results[task] = {
+                "accuracy": correct / len(data) if data else 0,
+                "num": len(data),
+                "num_failed": failed,
+            }
 
         def _group_mean(task_names: List[str]) -> float:
             group_scores = [

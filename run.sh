@@ -24,13 +24,17 @@ echo "[run.sh] hf_cache=${HF_HOME}"
 
 case "${MODE}" in
   setup)
-    bash scripts/setup_autodl.sh
+    bash scripts/bootstrap_fresh_machine.sh all
     ;;
   check)
-    python scripts/check_runtime.py \
-      --model "${MODEL}" \
-      --data_root "${DATA_ROOT}" \
-      --output "results/runtime_check_${MODEL}.json"
+    python scripts/run_matrix.py \
+      --models "${MODEL}" \
+      --benchmarks pope chair mme \
+      --decoders greedy cesd \
+      --num_samples 1 \
+      --seed 42 \
+      --results_root "results/matrix_check_${MODEL}" \
+      --dry_run
     ;;
   quick)
     python scripts/run_eval_pope.py \

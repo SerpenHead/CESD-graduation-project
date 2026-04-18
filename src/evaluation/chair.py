@@ -263,22 +263,29 @@ def compute_chair(
     total_mentioned = 0
     total_hallucinated = 0
     n_with_halluc = 0
-    n_valid = 0       # captions that mention ≥1 COCO object
+    n_with_mentions = 0  # captions that mention >=1 COCO object
+    n_total = len(captions)
 
     for cap, gt in zip(captions, gt_objects):
         mentioned = extract_objects(cap)
         if not mentioned:
             continue
-        n_valid += 1
+        n_with_mentions += 1
         hallucinated = mentioned - gt
         total_mentioned += len(mentioned)
         total_hallucinated += len(hallucinated)
         if hallucinated:
             n_with_halluc += 1
 
-    chair_s = n_with_halluc / n_valid if n_valid else 0.0
+    # CHAIR_s is defined over all evaluated captions, not only captions with mentions.
+    chair_s = n_with_halluc / n_total if n_total else 0.0
     chair_i = total_hallucinated / total_mentioned if total_mentioned else 0.0
-    return {"chair_s": chair_s, "chair_i": chair_i, "n_evaluated": n_valid}
+    return {
+        "chair_s": chair_s,
+        "chair_i": chair_i,
+        "n_evaluated": n_total,
+        "n_with_mentions": n_with_mentions,
+    }
 
 
 def load_coco_annotations(annot_path: str) -> Dict[int, Set[str]]:

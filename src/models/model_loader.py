@@ -42,7 +42,20 @@ def load_model(
     if attn_implementation is not None:
         kwargs["attn_implementation"] = attn_implementation
     config = get_model_config(model_name)
-    hf_path = model_path or config.get("model_path") or config.get("model_name")
+    configured_local_path = config.get("model_path")
+    configured_hub_name = config.get("model_name")
+
+    if model_path:
+        hf_path = model_path
+    elif configured_local_path and Path(configured_local_path).exists():
+        hf_path = configured_local_path
+    else:
+        hf_path = configured_hub_name
+        if configured_local_path and not Path(configured_local_path).exists():
+            print(
+                f"[model_loader] Local model path not found: {configured_local_path}. "
+                "Falling back to model_name from config."
+            )
     if hf_path is None:
         hf_path = {
             "llava": "llava-hf/llava-v1.6-vicuna-7b-hf",
