@@ -51,15 +51,19 @@ def main():
                         help="POPE samples per config (keep small for speed)")
     parser.add_argument("--seed",        type=int, default=42)
     parser.add_argument("--output_dir",  default="results/ablation")
+    parser.add_argument("--splits",      nargs="+",
+                        default=["random", "popular", "adversarial"],
+                        choices=["random", "popular", "adversarial"],
+                        help="POPE splits used for ablation/sensitivity evaluation")
     args = parser.parse_args()
 
     set_seed(args.seed)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # This script always benchmarks CESD variants (and iTaD in TPS mode), so we
-    # force eager attention to ensure attentions are actually returned.
-    print(f"[Ablation] Loading model: {args.model} (attn_implementation=eager)")
+    # All ablation/TPS modes instantiate CESD, and TPS also measures iTaD.
+    # Use eager attention so contrastive decoders can access non-empty attentions.
+    print(f"[Ablation] Loading model: {args.model} (attn_implementation=eager for CESD/iTaD)")
     model, processor = load_model(args.model, attn_implementation="eager")
     config     = get_model_config(args.model)
     model_type = config.get("model_type", args.model)
@@ -113,7 +117,7 @@ def main():
     evaluator = POPEEvaluator(
         data_path=args.data_path,
         coco_root=args.coco_root,
-        splits=["random"],
+        splits=args.splits,
         num_samples=args.num_samples,
     )
 
@@ -136,9 +140,9 @@ def main():
         try:
             res = evaluator.evaluate(
                 model, processor, make_fn(decoder),
-                model_type=model_type, splits=["random"],
+                model_type=model_type, splits=args.splits,
             )
-            all_results[name] = res["random"]
+            all_results[name] = res
             with open(out_dir / f"{name}.json", "w") as f:
                 json.dump({"config_name": name, "config": cfg_kw,
                            "seed": args.seed, "results": res}, f, indent=2)
@@ -155,9 +159,15 @@ def main():
     print(f"\n{'='*50}")
     print(f"Ablation Summary ({args.mode}):")
     for name, r in all_results.items():
-        f1  = r.get("f1", 0)
-        acc = r.get("accuracy", 0)
-        print(f"  {name:30s}  Acc={acc:.4f}  F1={f1:.4f}")
+        split_parts = []
+        for split in args.splits:
+            metrics = r.get(split, {})
+            if metrics:
+                split_parts.append(
+                    f"{split}: Acc={metrics.get('accuracy', 0):.4f} F1={metrics.get('f1', 0):.4f}"
+                )
+        joined = " | ".join(split_parts) if split_parts else "no results"
+        print(f"  {name:30s}  {joined}")
     print(f"Saved → {summary_path}")
 
 

@@ -10,12 +10,14 @@ import torch
 
 try:
     from ..utils.itav import contrastive_decode
+    from ..utils.layer_ops import project_hidden_to_logits
     from .cesd import _get_transformer_layers, _eos_reached
 except ImportError:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from src.utils.itav import contrastive_decode
+    from src.utils.layer_ops import project_hidden_to_logits
     from src.decoding.cesd import _get_transformer_layers, _eos_reached
 
 
@@ -52,11 +54,10 @@ class DoLaDecoder:
         **kwargs,
     ) -> torch.Tensor:
         layers = _get_transformer_layers(model)
-        lm_head = getattr(model, "lm_head", None) or model.get_output_embeddings()
         eos_token_id = getattr(model.config, "eos_token_id", None)
 
         # Fallback to greedy if we cannot access layers
-        if layers is None or lm_head is None:
+        if layers is None:
             gen_kwargs: dict = {
                 "max_new_tokens": max_new_tokens,
                 "do_sample": False,
@@ -108,10 +109,13 @@ class DoLaDecoder:
                 next_tok = out.logits[:, -1, :].argmax(dim=-1, keepdim=True)
             else:
                 # hidden[k+1] = output of layer k
-                logits_mature = lm_head(hidden[mature_idx + 1][:, -1, :])
-                logits_premature = lm_head(hidden[premature_idx + 1][:, -1, :])
-                logits = contrastive_decode(logits_mature, logits_premature, self.alpha)
-                next_tok = logits.argmax(dim=-1, keepdim=True)
+                logits_mature = project_hidden_to_logits(model, hidden[mature_idx + 1][:, -1, :])
+                logits_premature = project_hidden_to_logits(model, hidden[premature_idx + 1][:, -1, :])
+                if logits_mature is None or logits_premature is None:
+                    next_tok = out.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+                else:
+                    logits = contrastive_decode(logits_mature, logits_premature, self.alpha)
+                    next_tok = logits.argmax(dim=-1, keepdim=True)
 
             generated = torch.cat([generated, next_tok], dim=1)
             if cur_mask is not None:

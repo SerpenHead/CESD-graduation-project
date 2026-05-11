@@ -2,8 +2,8 @@
 iTaD: Image Token Attention-Guided Decoding (baseline).
 
 Same dynamic layer selection as CESD but WITHOUT sparsification.
-Amateur logits come from running the model forward with a hook that injects
-the raw intermediate hidden state at layer M*.
+Amateur logits come from directly projecting the selected intermediate
+layer output hidden state within a single full-model forward pass.
 
 Reference: Xu et al., NAACL 2025
 """
@@ -13,52 +13,17 @@ import torch
 
 try:
     from ..utils.itav import compute_itav, select_contrastive_layer, contrastive_decode
+    from ..utils.layer_ops import project_intermediate_logits
     from ..models.model_utils import get_image_token_indices, get_model_info, resolve_image_token_id
-    from .cesd import _get_transformer_layers, _eos_reached
+    from .cesd import _eos_reached
 except ImportError:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
     from src.utils.itav import compute_itav, select_contrastive_layer, contrastive_decode
+    from src.utils.layer_ops import project_intermediate_logits
     from src.models.model_utils import get_image_token_indices, get_model_info, resolve_image_token_id
-    from src.decoding.cesd import _get_transformer_layers, _eos_reached
-
-
-def _run_layer_hook_forward(
-    model,
-    input_ids: torch.Tensor,
-    attention_mask: Optional[torch.Tensor],
-    gen_kwargs: dict,
-    layers,
-    m_star: int,
-    h_inject: torch.Tensor,
-) -> Optional[torch.Tensor]:
-    """Inject h_inject at layer m_star via pre-hook; run full model forward."""
-    fired = [False]
-
-    def _pre_hook(module, args):
-        if not fired[0]:
-            fired[0] = True
-            if isinstance(args, tuple) and len(args) > 0:
-                return (h_inject.to(args[0].dtype),) + args[1:]
-        return args
-
-    handle = layers[m_star].register_forward_pre_hook(_pre_hook)
-    try:
-        with torch.no_grad():
-            out = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                output_hidden_states=False,
-                output_attentions=False,
-                **gen_kwargs,
-            )
-        return out.logits[:, -1, :]
-    except Exception as e:
-        print(f"[iTaD] Amateur forward failed: {e}")
-        return None
-    finally:
-        handle.remove()
+    from src.decoding.cesd import _eos_reached
 
 
 class ITaDDecoder:
@@ -88,7 +53,6 @@ class ITaDDecoder:
             fallback=self.model_info.get("image_token_id", 32000),
         )
         eos_token_id = getattr(model.config, "eos_token_id", None)
-        layers = _get_transformer_layers(model)
 
         gen_kwargs: dict = {}
         if pixel_values is not None:
@@ -114,7 +78,7 @@ class ITaDDecoder:
 
             expert_logits = expert_out.logits[:, -1, :]
 
-            if (expert_out.hidden_states is None or expert_out.attentions is None or layers is None or
+            if (expert_out.hidden_states is None or expert_out.attentions is None or
                     len(expert_out.attentions) == 0):
                 self._stats["fallback"] += 1
                 next_tok = expert_logits.argmax(dim=-1, keepdim=True)
@@ -131,11 +95,8 @@ class ITaDDecoder:
                     else:
                         final_idx = len(itavs) - 1
                         m_star = select_contrastive_layer(itavs, final_idx)
-                        h_inject = expert_out.hidden_states[m_star]  # raw, no sparsification
-
-                        amateur_logits = _run_layer_hook_forward(
-                            model, generated, cur_mask, gen_kwargs,
-                            layers, m_star, h_inject,
+                        amateur_logits = project_intermediate_logits(
+                            model, expert_out.hidden_states, m_star
                         )
                         if amateur_logits is not None and amateur_logits.shape == expert_logits.shape:
                             self._stats["contrastive"] += 1

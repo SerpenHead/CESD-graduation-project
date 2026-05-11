@@ -66,8 +66,12 @@ def aggregate_ablation_results(
         name = d.get("config_name", p.stem)
         if "results" in d:
             r = d["results"]
-            if isinstance(r, dict) and "random" in r:
-                agg[name] = r["random"].get(metric_key, 0)
+            if isinstance(r, dict) and any(split in r for split in ["random", "popular", "adversarial"]):
+                split_metrics = {}
+                for split in ["random", "popular", "adversarial"]:
+                    if split in r:
+                        split_metrics[split] = r[split].get(metric_key, 0)
+                agg[name] = split_metrics
             elif isinstance(r, dict):
                 agg[name] = r.get(metric_key, 0)
             else:

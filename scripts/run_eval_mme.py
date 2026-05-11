@@ -89,8 +89,8 @@ def main():
 
     set_seed(args.seed)
 
-    need_attn = args.decoder in ("cesd", "itad", "opera", "vasparse")
-    print(f"[MME] Loading model: {args.model}" + (" (attn_implementation=eager)" if need_attn else ""))
+    need_attn = args.decoder in ("cesd", "itad")
+    print(f"[MME] Loading model: {args.model}" + (" (attn_implementation=eager for CESD/iTaD)" if need_attn else ""))
     model, processor = load_model(
         args.model,
         attn_implementation="eager" if need_attn else None,
